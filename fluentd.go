@@ -3,6 +3,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -19,8 +20,11 @@ var SeverityMap = map[string]string {
 	"info": "info",
 }
 
+var lk sync.Mutex
+
 // logrus to stackdriver severity map
 func UseStackdriverSeverity(){
+	lk.Lock()
 	SeverityMap = map[string]string {
 		"panic": "CRITICAL",
 		"fatal": "CRITICAL",
@@ -30,6 +34,7 @@ func UseStackdriverSeverity(){
 		"trace": "DEBUG",
 		"info": "INFO",
 	}
+	lk.Unlock()
 }
 
 // FluentdFormatter is similar to logrus.JSONFormatter but with log level that are recongnized
@@ -62,11 +67,13 @@ func (f *FluentdFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	data["time"] = entry.Time.Format(timestampFormat)
 	data["message"] = entry.Message
 
+	lk.Lock()
 	if ms, ok := SeverityMap[entry.Level.String()]; ok {
 		data["severity"] = ms
 	} else {
 		data["severity"] = SeverityMap["debug"]
 	}
+	lk.Unlock()
 
 	serialized, err := json.Marshal(data)
 	if err != nil {
